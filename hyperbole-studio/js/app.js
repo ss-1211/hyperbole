@@ -93,6 +93,10 @@
 
   // ----- param panel rendering -----
   function buildParamUI(generator) {
+    // clean up any timers from previous panel
+    Array.from(paramPanel.children).forEach(child => {
+      if (child._cleanup) child._cleanup();
+    });
     paramPanel.innerHTML = '';
 
     generator.paramSchema.forEach((item) => {
@@ -122,6 +126,148 @@
           row.appendChild(b);
         });
         wrapper.appendChild(row);
+        paramPanel.appendChild(wrapper);
+        return;
+      }
+
+      // ----- audio-input: special handler -----
+      if (item.type === 'audio-input') {
+        const dropZone = document.createElement('button');
+        dropZone.type = 'button';
+        dropZone.className = 'drop-zone';
+        dropZone.style.cssText = [
+          'display: block',
+          'width: 100%',
+          'min-height: 60px',
+          'border: 2px dashed #555',
+          'background: #1a1a1a',
+          'color: #aaa',
+          'padding: 18px 12px',
+          'text-align: center',
+          'cursor: pointer',
+          'font-family: inherit',
+          'font-size: 11px',
+          'letter-spacing: 0.1em'
+        ].join('; ');
+        const hasIt = generator.hasAudio && generator.hasAudio();
+        dropZone.textContent = hasIt
+          ? 'AUDIO LOADED — CLICK TO REPLACE'
+          : '🎵 CLICK TO UPLOAD AUDIO';
+        wrapper.appendChild(dropZone);
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'audio/*';
+        fileInput.style.display = 'none';
+        wrapper.appendChild(fileInput);
+
+        // playback controls row
+        const ctrlRow = document.createElement('div');
+        ctrlRow.style.cssText = 'display: flex; gap: 6px; margin-top: 8px;';
+        const playBtn = document.createElement('button');
+        playBtn.type = 'button';
+        playBtn.className = 'preset-btn';
+        playBtn.textContent = '▶ PLAY';
+        playBtn.style.flex = '1';
+        const stopBtn = document.createElement('button');
+        stopBtn.type = 'button';
+        stopBtn.className = 'preset-btn';
+        stopBtn.textContent = '■ STOP';
+        stopBtn.style.flex = '1';
+        ctrlRow.appendChild(playBtn);
+        ctrlRow.appendChild(stopBtn);
+        wrapper.appendChild(ctrlRow);
+
+        // info row (duration / position)
+        const infoRow = document.createElement('div');
+        infoRow.style.cssText = 'font-size: 9px; color: #888; margin-top: 6px; letter-spacing: 0.1em;';
+        infoRow.textContent = 'No audio loaded';
+        wrapper.appendChild(infoRow);
+
+        // initially hidden if no audio
+        if (!hasIt) ctrlRow.style.display = 'none';
+
+        function refreshInfo() {
+          if (!generator.getPlaybackInfo) return;
+          const info = generator.getPlaybackInfo();
+          if (!info) {
+            infoRow.textContent = 'No audio loaded';
+            playBtn.textContent = '▶ PLAY';
+            return;
+          }
+          const fmt = (s) => {
+            const m = Math.floor(s / 60);
+            const ss = Math.floor(s % 60).toString().padStart(2, '0');
+            return m + ':' + ss;
+          };
+          infoRow.textContent =
+            (info.isPlaying ? '▶ ' : '❚❚ ') +
+            fmt(info.position) + ' / ' + fmt(info.duration);
+          playBtn.textContent = info.isPlaying ? '❚❚ PAUSE' : '▶ PLAY';
+        }
+        // poll info while panel is visible
+        const infoTimer = setInterval(refreshInfo, 200);
+        // attach cleanup to wrapper
+        wrapper._cleanup = () => clearInterval(infoTimer);
+
+        async function loadFile(file) {
+          if (!file || !file.type.startsWith('audio/')) {
+            console.warn('[HYPERBOLE] Not an audio file');
+            return;
+          }
+          dropZone.textContent = 'DECODING...';
+          if (!generator.setAudioFile) return;
+          const result = await generator.setAudioFile(file);
+          if (result.ok) {
+            dropZone.textContent = '✓ ' + file.name +
+              ' — ' + result.duration.toFixed(1) + 's';
+            dropZone.style.borderStyle = 'solid';
+            dropZone.style.color = '#fff';
+            ctrlRow.style.display = 'flex';
+            // auto-set export duration to audio length
+            inExportDur.value = result.duration.toFixed(1);
+            updateFrameCount();
+            console.log('[HYPERBOLE] Audio loaded:', file.name, result.duration + 's');
+          } else {
+            dropZone.textContent = '✗ Failed: ' + (result.error || 'unknown');
+          }
+        }
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files.length) loadFile(e.target.files[0]);
+        });
+        ['dragenter', 'dragover'].forEach(ev => {
+          dropZone.addEventListener(ev, (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.style.borderColor = 'var(--accent, #fff)';
+          });
+        });
+        ['dragleave', 'drop'].forEach(ev => {
+          dropZone.addEventListener(ev, (e) => {
+            e.preventDefault(); e.stopPropagation();
+            dropZone.style.borderColor = '#555';
+          });
+        });
+        dropZone.addEventListener('drop', (e) => {
+          if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+        });
+
+        playBtn.addEventListener('click', () => {
+          if (!generator.hasAudio || !generator.hasAudio()) return;
+          const info = generator.getPlaybackInfo();
+          if (info && info.isPlaying) {
+            generator.pause();
+          } else {
+            generator.play();
+          }
+          refreshInfo();
+        });
+        stopBtn.addEventListener('click', () => {
+          if (generator.stopPlayback) generator.stopPlayback();
+          refreshInfo();
+        });
+
         paramPanel.appendChild(wrapper);
         return;
       }
@@ -320,6 +466,10 @@
     } else {
       staticBtnRow.style.display = 'none';
     }
+
+    // reset sidebar scroll so the first param (e.g. audio upload) is visible
+    const sidebarEl = document.getElementById('sidebar');
+    if (sidebarEl) sidebarEl.scrollTop = 0;
   }
 
   generatorSelect.addEventListener('change', () => {
@@ -359,6 +509,17 @@
     exportBtn.disabled = true;
     if (exportStaticBtn) exportStaticBtn.disabled = true;
     try {
+      // pre-bake audio frames if applicable
+      if (currentGen.bakeFrames && currentGen.hasAudio && currentGen.hasAudio()) {
+        exportStatus.textContent = 'Pre-analyzing audio...';
+        await currentGen.bakeFrames(fps, dur, currentParams.smoothing || 0.8,
+          (done, total) => {
+            exportStatus.textContent = 'Audio analysis: ' + done + ' / ' + total;
+          });
+      } else if (currentGen.clearBakedFrames) {
+        currentGen.clearBakedFrames();
+      }
+
       await window.HYPERBOLE_EXPORTER.exportSequence({
         generator: currentGen,
         params: currentParams,

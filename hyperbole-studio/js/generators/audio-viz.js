@@ -6,9 +6,11 @@
      - WAVE   : delay waveform with green + white traces
      - RADIAL : radial spectrum with 3-band EQ wiggle
 
-   Simulation mode only — uses pseudo-random sine sums to drive
-   the visuals so it loops cleanly and exports deterministically
-   without requiring an audio source.
+   Audio modes:
+     - SIM (default): pseudo-random sine sums drive the visuals
+     - LIVE: actual audio playback drives FFT analysis
+     - EXPORT: OfflineAudioContext pre-bakes per-frame FFT data
+              for deterministic PNG sequence export synced to audio
 
    Adapted from HYPERBOLE® VIZ GENERATOR (Apr 2026).
    ============================================================ */
@@ -22,6 +24,9 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
     style:        'bar',            // bar / wave / radial
     primaryColor: '#00FF41',
     bgColor:      '#000000',
+    audioVolume:  0.7,
+    audioPlaying: 0,                // playback flag (controlled by app.js via setPlaying)
+    smoothing:    0.8,              // analyser smoothing constant
 
     // BAR specific
     bands:        128,
@@ -65,6 +70,11 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
   };
 
   const paramSchema = [
+    { type: 'group', label: 'Audio Source' },
+    { type: 'audio-input', key: '__audio' },
+    { type: 'range', key: 'audioVolume', label: 'Volume', min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
+    { type: 'range', key: 'smoothing', label: 'FFT Smoothing', min: 0, max: 0.99, step: 0.01, fmt: v => v.toFixed(2) },
+
     { type: 'group', label: 'Style' },
     { type: 'select', key: 'style', label: 'Visualizer', options: [
       { value: 'bar',    label: 'BAR (FFT + Peak Hold)' },
@@ -154,6 +164,272 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
   ];
 
   // ============================================================
+  //  AUDIO STATE  (module-private)
+  // ============================================================
+  let audioBuffer = null;        // decoded AudioBuffer
+  let audioCtx = null;           // shared AudioContext for live preview
+  let analyser = null;           // AnalyserNode for live mode
+  let gainNode = null;
+  let liveSource = null;         // BufferSourceNode of currently-playing audio
+  let isPlaying = false;
+  let playStartCtxTime = 0;      // audioCtx.currentTime when playback started
+  let playOffset = 0;            // resume position (seconds)
+  let liveFreqArr = null;        // Uint8Array sized to fftSize/2
+  let liveTimeArr = null;        // Float32Array sized to fftSize
+
+  // For export: pre-baked per-frame FFT data
+  // bakedFrames = [{ freq: Uint8Array, time: Float32Array }, ...]
+  let bakedFrames = null;
+  let bakedFps = 0;
+
+  const FFT_SIZE = 4096;
+
+  function ensureAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = FFT_SIZE;
+      gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0.7;
+      gainNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      liveFreqArr = new Uint8Array(analyser.frequencyBinCount);
+      liveTimeArr = new Float32Array(analyser.fftSize);
+    }
+  }
+
+  // Public: load audio file (called by app.js audio-input handler)
+  async function setAudioFile(file) {
+    ensureAudioCtx();
+    stopPlayback();
+    audioBuffer = null;
+    bakedFrames = null;
+    try {
+      const arr = await file.arrayBuffer();
+      audioBuffer = await audioCtx.decodeAudioData(arr.slice(0));
+      return { ok: true, duration: audioBuffer.duration };
+    } catch (e) {
+      console.error('[audio-viz] decode failed', e);
+      return { ok: false, error: e.message };
+    }
+  }
+
+  function hasAudio() { return audioBuffer !== null; }
+  function getAudioDuration() { return audioBuffer ? audioBuffer.duration : 0; }
+
+  function play() {
+    if (!audioBuffer) return false;
+    ensureAudioCtx();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    stopPlayback();   // stop any existing source
+    liveSource = audioCtx.createBufferSource();
+    liveSource.buffer = audioBuffer;
+    liveSource.connect(gainNode);
+    const offset = playOffset % audioBuffer.duration;
+    liveSource.start(0, offset);
+    playStartCtxTime = audioCtx.currentTime - offset;
+    isPlaying = true;
+    liveSource.onended = () => {
+      // natural end: reset to start
+      isPlaying = false;
+      playOffset = 0;
+    };
+    return true;
+  }
+
+  function pause() {
+    if (!isPlaying || !audioCtx) return;
+    playOffset = audioCtx.currentTime - playStartCtxTime;
+    stopPlayback();
+  }
+
+  function stopPlayback() {
+    if (liveSource) {
+      try { liveSource.onended = null; liveSource.stop(); } catch (e) {}
+      liveSource = null;
+    }
+    isPlaying = false;
+  }
+
+  function setVolume(v) {
+    if (gainNode) gainNode.gain.value = v;
+  }
+
+  function setSmoothing(s) {
+    if (analyser) analyser.smoothingTimeConstant = s;
+  }
+
+  function getPlaybackInfo() {
+    if (!audioBuffer) return null;
+    let pos = playOffset;
+    if (isPlaying && audioCtx) {
+      pos = audioCtx.currentTime - playStartCtxTime;
+    }
+    return {
+      duration: audioBuffer.duration,
+      position: pos,
+      isPlaying
+    };
+  }
+
+  // ============================================================
+  //  OFFLINE BAKING  (for export)
+  // ============================================================
+  // Renders the audioBuffer through an OfflineAudioContext, capturing
+  // the analyser output at each frame interval. Returns a Promise that
+  // resolves to an array of { freq: Uint8Array, time: Float32Array }.
+  async function bakeFrames(fps, durationSec, smoothing, onProgress) {
+    if (!audioBuffer) return null;
+
+    const sampleRate = audioBuffer.sampleRate;
+    const bakeDuration = Math.min(durationSec, audioBuffer.duration);
+    const totalSamples = Math.ceil(bakeDuration * sampleRate);
+    const totalFrames = Math.round(bakeDuration * fps);
+    const samplesPerFrame = sampleRate / fps;
+
+    const offCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+      audioBuffer.numberOfChannels, totalSamples, sampleRate
+    );
+    const offSrc = offCtx.createBufferSource();
+    offSrc.buffer = audioBuffer;
+    const offAnalyser = offCtx.createAnalyser();
+    offAnalyser.fftSize = FFT_SIZE;
+    offAnalyser.smoothingTimeConstant = smoothing;
+    offSrc.connect(offAnalyser);
+    offAnalyser.connect(offCtx.destination);
+
+    // OfflineAudioContext renders synchronously without real-time playback,
+    // so we cannot poll the analyser at intervals. Instead we use
+    // ScriptProcessorNode (deprecated but works) or we render the buffer
+    // and do FFT manually offline.
+    //
+    // SIMPLE APPROACH: Render the buffer to a flat Float32Array via offline
+    // rendering, then do our own FFT analysis on time-domain windows.
+
+    offSrc.start(0);
+    const renderedBuffer = await offCtx.startRendering();
+
+    // Mix down to mono Float32 array
+    const ch0 = renderedBuffer.getChannelData(0);
+    const chN = renderedBuffer.numberOfChannels;
+    let mono;
+    if (chN === 1) {
+      mono = ch0;
+    } else {
+      const ch1 = renderedBuffer.getChannelData(1);
+      mono = new Float32Array(ch0.length);
+      for (let i = 0; i < ch0.length; i++) {
+        mono[i] = (ch0[i] + ch1[i]) * 0.5;
+      }
+    }
+
+    // FFT setup: simple radix-2 Cooley-Tukey
+    const fft = makeFFT(FFT_SIZE);
+
+    // For each frame, take a window centered (or starting) at frame time,
+    // run FFT, store magnitudes scaled to 0..255 (matching getByteFrequencyData)
+    const frames = new Array(totalFrames);
+    const window = new Float32Array(FFT_SIZE);
+
+    // smoothing buffer (previous frame's smoothed magnitudes)
+    const smooth = new Float32Array(FFT_SIZE / 2);
+
+    for (let f = 0; f < totalFrames; f++) {
+      const startSample = Math.floor(f * samplesPerFrame);
+      // copy window from mono
+      for (let i = 0; i < FFT_SIZE; i++) {
+        const idx = startSample + i;
+        window[i] = idx < mono.length ? mono[idx] : 0;
+      }
+      // apply Hann window
+      for (let i = 0; i < FFT_SIZE; i++) {
+        const wv = 0.5 * (1 - Math.cos(2 * Math.PI * i / (FFT_SIZE - 1)));
+        window[i] *= wv;
+      }
+
+      const { mag } = fft(window);
+      // Convert magnitude to 0..255 with smoothing (mimics AnalyserNode)
+      const freq = new Uint8Array(FFT_SIZE / 2);
+      const dbMin = -100, dbMax = -30;
+      for (let i = 0; i < FFT_SIZE / 2; i++) {
+        // smoothing: prev * s + curr * (1-s)
+        smooth[i] = smooth[i] * smoothing + mag[i] * (1 - smoothing);
+        let db = 20 * Math.log10(smooth[i] + 1e-12);
+        let v = (db - dbMin) / (dbMax - dbMin);
+        if (v < 0) v = 0;
+        else if (v > 1) v = 1;
+        freq[i] = Math.round(v * 255);
+      }
+      // time-domain: just the (un-windowed) samples for this frame, sized FFT_SIZE
+      const time = new Float32Array(FFT_SIZE);
+      for (let i = 0; i < FFT_SIZE; i++) {
+        const idx = startSample + i;
+        time[i] = idx < mono.length ? mono[idx] : 0;
+      }
+
+      frames[f] = { freq, time };
+
+      if (onProgress && (f % 8 === 0 || f === totalFrames - 1)) {
+        onProgress(f + 1, totalFrames);
+        // yield so UI can update
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    bakedFrames = frames;
+    bakedFps = fps;
+    return frames;
+  }
+
+  // Simple radix-2 Cooley-Tukey FFT, returns magnitude array of length n/2
+  // Returns { mag } where mag[k] = magnitude at bin k (k = 0..n/2-1)
+  function makeFFT(n) {
+    // precompute bit-reversal table
+    const log2n = Math.round(Math.log2(n));
+    const rev = new Uint32Array(n);
+    for (let i = 0; i < n; i++) {
+      let r = 0;
+      let x = i;
+      for (let j = 0; j < log2n; j++) { r = (r << 1) | (x & 1); x >>= 1; }
+      rev[i] = r;
+    }
+    return function (real) {
+      const re = new Float32Array(n);
+      const im = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        re[rev[i]] = real[i];
+      }
+      // butterflies
+      for (let size = 2; size <= n; size *= 2) {
+        const half = size / 2;
+        const ang = -2 * Math.PI / size;
+        const wRe = Math.cos(ang), wIm = Math.sin(ang);
+        for (let i = 0; i < n; i += size) {
+          let curRe = 1, curIm = 0;
+          for (let j = 0; j < half; j++) {
+            const a = i + j;
+            const b = i + j + half;
+            const tRe = curRe * re[b] - curIm * im[b];
+            const tIm = curRe * im[b] + curIm * re[b];
+            re[b] = re[a] - tRe; im[b] = im[a] - tIm;
+            re[a] = re[a] + tRe; im[a] = im[a] + tIm;
+            const ncRe = curRe * wRe - curIm * wIm;
+            const ncIm = curRe * wIm + curIm * wRe;
+            curRe = ncRe; curIm = ncIm;
+          }
+        }
+      }
+      const half = n / 2;
+      const mag = new Float32Array(half);
+      const norm = 2 / n;
+      for (let i = 0; i < half; i++) {
+        mag[i] = Math.sqrt(re[i] * re[i] + im[i] * im[i]) * norm;
+      }
+      return { mag };
+    };
+  }
+
+  // ============================================================
   //  STATE  (peak hold / wave history) — kept as module-private
   //  These persist across frames during preview. For export we
   //  reset on setup() so the loop is deterministic.
@@ -198,7 +474,7 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
   // ============================================================
   //  STYLE: BAR  (VIZ_01)
   // ============================================================
-  function drawBar(ctx, W, H, P, t) {
+  function drawBar(ctx, W, H, P, t, audioData) {
     const bands  = Math.round(P.bands);
     const barW   = P.barWidth;
     const gap    = P.gap;
@@ -216,9 +492,19 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
 
     ctx.fillStyle = P.primaryColor;
 
+    const freqArr = audioData ? audioData.freq : null;
+
     for (let i = 0; i < bands; i++) {
       const nx = i / bands;
-      const level = fakeLevel(nx, t, 1.2);
+      let level;
+      if (freqArr) {
+        const start = Math.floor(P.freqStart * freqArr.length);
+        const end   = Math.floor(P.freqEnd   * freqArr.length);
+        const binIdx = Math.floor(start + (i / bands) * (end - start));
+        level = freqArr[Math.min(binIdx, freqArr.length - 1)] / 255;
+      } else {
+        level = fakeLevel(nx, t, 1.2);
+      }
 
       const barH = Math.max(2, level * amp);
       const x = startX + i * (barW + gap);
@@ -243,22 +529,31 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
   // ============================================================
   //  STYLE: WAVE  (VIZ_02)
   // ============================================================
-  function getWavePts(W, H, ampPct, t) {
+  function getWavePts(W, H, ampPct, t, audioData) {
     const cy = H / 2;
     const samples = 512;
     const pts = [];
     const ampPx = H * ampPct / 100 * 0.9;
-    for (let i = 0; i < samples; i++) {
-      const nx = i / samples;
-      const x = nx * W;
-      const v =
-        Math.sin(nx * 23 + t * 2.1)  * 0.30 +
-        Math.sin(nx * 51 + t * 3.7)  * 0.22 +
-        Math.sin(nx * 11 + t * 1.3)  * 0.18 +
-        Math.sin(nx * 89 + t * 5.1)  * 0.14 +
-        Math.sin(nx * 7  + t * 0.9)  * 0.10 +
-        Math.sin(nx * 137+ t * 6.3)  * 0.06;
-      pts.push({ x, y: cy + v * ampPx });
+    if (audioData && audioData.time) {
+      const time = audioData.time;
+      for (let i = 0; i < samples; i++) {
+        const x = (i / (samples - 1)) * W;
+        const v = time[Math.floor(i / samples * time.length)];
+        pts.push({ x, y: cy + v * ampPx });
+      }
+    } else {
+      for (let i = 0; i < samples; i++) {
+        const nx = i / samples;
+        const x = nx * W;
+        const v =
+          Math.sin(nx * 23 + t * 2.1)  * 0.30 +
+          Math.sin(nx * 51 + t * 3.7)  * 0.22 +
+          Math.sin(nx * 11 + t * 1.3)  * 0.18 +
+          Math.sin(nx * 89 + t * 5.1)  * 0.14 +
+          Math.sin(nx * 7  + t * 0.9)  * 0.10 +
+          Math.sin(nx * 137+ t * 6.3)  * 0.06;
+        pts.push({ x, y: cy + v * ampPx });
+      }
     }
     return pts;
   }
@@ -286,8 +581,8 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
     return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
   }
 
-  function drawWave(ctx, W, H, P, t) {
-    const currentPts = getWavePts(W, H, P.greenAmp, t);
+  function drawWave(ctx, W, H, P, t, audioData) {
+    const currentPts = getWavePts(W, H, P.greenAmp, t, audioData);
     waveHistory.unshift(currentPts);
     if (waveHistory.length > 21) waveHistory.pop();
 
@@ -304,7 +599,7 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
     drawWaveLine(ctx, currentPts, P.greenWidth,
       hexToRgba(P.primaryColor, P.greenOp));
     // white line
-    const whitePts = getWavePts(W, H, P.whiteAmp, t * 0.93);
+    const whitePts = getWavePts(W, H, P.whiteAmp, t * 0.93, audioData);
     drawWaveLine(ctx, whitePts, P.whiteWidth,
       'rgba(255,255,255,' + P.whiteOp + ')');
 
@@ -324,8 +619,21 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
   // ============================================================
   //  STYLE: RADIAL  (VIZ_03)
   // ============================================================
-  function getRadialLevel(i, bands, P, lowG, midG, highG, t) {
+  function getRadialLevel(i, bands, P, lowG, midG, highG, t, audioData) {
     const nx = i / bands;
+    if (audioData && audioData.freq) {
+      const freqArr = audioData.freq;
+      const totalBins = freqArr.length;
+      const lowEnd  = Math.floor(P.lowRange  * totalBins);
+      const midEnd  = Math.floor(P.midRange  * totalBins);
+      const highEnd = Math.floor(P.highRange * totalBins);
+      let binIdx, gain;
+      if (nx < 1/3)      { binIdx = Math.floor((nx*3) * lowEnd); gain = lowG; }
+      else if (nx < 2/3) { binIdx = Math.floor(lowEnd + (nx-1/3)*3*(midEnd-lowEnd)); gain = midG; }
+      else               { binIdx = Math.floor(midEnd + (nx-2/3)*3*(highEnd-midEnd)); gain = highG; }
+      binIdx = Math.min(Math.max(binIdx, 0), freqArr.length - 1);
+      return Math.min(freqArr[binIdx] / 255 * gain, 1);
+    }
     const falloff = Math.pow(1 - nx * 0.4, 1.0);
     const base = Math.abs(
       Math.sin(nx * 8  + t * 1.3) * 0.45 +
@@ -337,7 +645,7 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
     return Math.min(base * g, 1);
   }
 
-  function drawRadial(ctx, W, H, P, t) {
+  function drawRadial(ctx, W, H, P, t, audioData) {
     ctx.fillStyle = P.bgColor;
     ctx.fillRect(0, 0, W, H);
 
@@ -361,7 +669,7 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
     for (let i = 0; i < bands; i++) {
       const angle = (i / bands) * Math.PI * 2;
       const nx = i / bands;
-      const rawLevel = getRadialLevel(i, bands, P, lowG, midG, highG, t);
+      const rawLevel = getRadialLevel(i, bands, P, lowG, midG, highG, t, audioData);
 
       const level = Math.pow(rawLevel, 1.0 / contrast);
 
@@ -390,14 +698,32 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
   //  MAIN RENDER
   // ============================================================
   function render(ctx, W, H, t, P, opts) {
-    // Multiply t by 4 to roughly match the original VIZ generator's
-    // globalT increment of 0.04 per frame at 60fps (= 2.4 per sec)
+    // sync runtime params
+    setVolume(P.audioVolume);
+    setSmoothing(P.smoothing);
+
     const vt = t * 2.4;
+
+    // Resolve audio data for this frame
+    let audioData = null;
+    if (opts && opts.bakedFrameIndex !== undefined && bakedFrames) {
+      // export mode: use baked frame data
+      const idx = Math.min(opts.bakedFrameIndex, bakedFrames.length - 1);
+      audioData = bakedFrames[idx];
+    } else if (audioBuffer && analyser && isPlaying) {
+      // live mode: pull current FFT from analyser
+      analyser.smoothingTimeConstant = P.smoothing;
+      analyser.getByteFrequencyData(liveFreqArr);
+      analyser.getFloatTimeDomainData(liveTimeArr);
+      audioData = { freq: liveFreqArr, time: liveTimeArr };
+    }
+    // else audioData stays null = simulation mode
+
     switch (P.style) {
-      case 'wave':   drawWave(ctx, W, H, P, vt); break;
-      case 'radial': drawRadial(ctx, W, H, P, vt); break;
+      case 'wave':   drawWave(ctx, W, H, P, vt, audioData); break;
+      case 'radial': drawRadial(ctx, W, H, P, vt, audioData); break;
       case 'bar':
-      default:       drawBar(ctx, W, H, P, vt); break;
+      default:       drawBar(ctx, W, H, P, vt, audioData); break;
     }
   }
 
@@ -411,11 +737,22 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
     id: 'audioViz',
     name: 'Audio Visualizer',
     requiresImage: false,
+    requiresAudio: true,    // signals app.js to show audio controls
     supportsAnimation: true,
     defaultParams,
     paramSchema,
     setup,
     render,
-    suggestLoopDuration
+    suggestLoopDuration,
+    // audio API exposed to app.js
+    setAudioFile,
+    hasAudio,
+    getAudioDuration,
+    play,
+    pause,
+    stopPlayback,
+    getPlaybackInfo,
+    bakeFrames,
+    clearBakedFrames: () => { bakedFrames = null; bakedFps = 0; }
   };
 })();

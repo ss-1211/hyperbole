@@ -50,9 +50,15 @@ window.HYPERBOLE_EXPORTER = (function () {
       const t = i / fps;
 
       // For wireframe, use travelAtTime for clean export (non-state based)
-      const opts = (generator.id === 'wireframe')
-        ? { useTravelAtTime: true, travelStep: 1 / Math.max(60, fps * 4) }
-        : { state };
+      // For audioViz with baked audio, pass frame index so render() uses baked FFT data
+      let opts;
+      if (generator.id === 'wireframe') {
+        opts = { useTravelAtTime: true, travelStep: 1 / Math.max(60, fps * 4) };
+      } else if (generator.id === 'audioViz') {
+        opts = { state, bakedFrameIndex: i };
+      } else {
+        opts = { state };
+      }
 
       generator.render(ctx, width, height, t, params, opts);
 
