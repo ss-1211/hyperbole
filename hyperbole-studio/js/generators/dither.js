@@ -41,7 +41,10 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
     // animation params (active when running)
     animate:      0,             // 0/1
     animSpeed:    1.0,
-    animMode:     'threshold'    // threshold / scale / scanlinesShift
+    animMode:     'threshold',   // threshold / scale / scanlinesShift
+    // style shuffle (cycles through algorithms)
+    shuffleEnabled: 0,           // 0/1
+    shuffleInterval: 1.0         // seconds between style swaps
   };
 
   // ----- UI schema -----
@@ -101,7 +104,14 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
       { value: 'scale',         label: 'Scale breath' },
       { value: 'scanlinesShift',label: 'Scanlines shift' }
     ]},
-    { type: 'range', key: 'animSpeed', label: 'Anim Speed', min: 0.1, max: 3.0, step: 0.05, fmt: v => v.toFixed(2) }
+    { type: 'range', key: 'animSpeed', label: 'Anim Speed', min: 0.1, max: 3.0, step: 0.05, fmt: v => v.toFixed(2) },
+
+    { type: 'group', label: 'Style Shuffle' },
+    { type: 'select', key: 'shuffleEnabled', label: 'Auto-Shuffle Style', options: [
+      { value: 0, label: 'Off' },
+      { value: 1, label: 'On' }
+    ]},
+    { type: 'range', key: 'shuffleInterval', label: 'Shuffle Interval (s)', min: 0.1, max: 10, step: 0.1, fmt: v => v.toFixed(1) }
   ];
 
   // ============================================================
@@ -371,10 +381,33 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
     }
   }
 
+  // List of available styles for shuffling
+  const STYLE_LIST = [
+    'mod-diffuse-y',
+    'floyd-steinberg',
+    'atkinson',
+    'bayer',
+    'halftone',
+    'ascii'
+  ];
+
   // ============================================================
   //  MAIN RENDER
   // ============================================================
   function render(ctx, W, H, t, P, opts) {
+    // ----- determine effective style (for this frame) -----
+    // If shuffle is on and animation is enabled (i.e. preview, not still export),
+    // override P.style with one chosen by t / shuffleInterval.
+    let effectiveStyle = P.style;
+    const allowShuffle = opts && opts.animEnabled !== false;
+    if (P.shuffleEnabled && allowShuffle && P.shuffleInterval > 0.01) {
+      const slot = Math.floor(t / P.shuffleInterval);
+      // Use a deterministic pseudo-random pick per slot so it's stable
+      // within one slot but different across slots.
+      const idx = Math.abs((slot * 2654435761) | 0) % STYLE_LIST.length;
+      effectiveStyle = STYLE_LIST[idx];
+    }
+
     // bg
     ctx.fillStyle = P.bgColor;
     ctx.fillRect(0, 0, W, H);
@@ -452,33 +485,32 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
     const offsetX = (W - dispW) / 2;
     const offsetY = (H - dispH) / 2;
 
-    // apply chosen style
+    // apply chosen style (effectiveStyle = P.style or shuffled value)
     const ink = P.inkColor;
     const bg = P.bgColor;
 
-    if (P.style === 'mod-diffuse-y') {
-      // draw onto output canvas at full size
+    if (effectiveStyle === 'mod-diffuse-y') {
       renderModDiffuseY(ctx, lum, workW, workH, W, H, P.lineScale, threshold, ink, bg, scanShift);
       return;
     }
 
-    if (P.style === 'halftone') {
+    if (effectiveStyle === 'halftone') {
       renderHalftone(ctx, lum, W, H, P.dotSize, threshold, ink, bg);
       return;
     }
 
-    if (P.style === 'ascii') {
+    if (effectiveStyle === 'ascii') {
       renderAscii(ctx, lum, W, H, P.asciiSize, threshold, ink, bg);
       return;
     }
 
     // mask-based dithers (Floyd, Atkinson, Bayer)
     let mask;
-    if (P.style === 'floyd-steinberg') {
+    if (effectiveStyle === 'floyd-steinberg') {
       mask = ditherFloydSteinberg(lum, workW, workH, threshold);
-    } else if (P.style === 'atkinson') {
+    } else if (effectiveStyle === 'atkinson') {
       mask = ditherAtkinson(lum, workW, workH, threshold);
-    } else if (P.style === 'bayer') {
+    } else if (effectiveStyle === 'bayer') {
       mask = ditherBayer(lum, workW, workH, threshold, P.bayerLevel);
     } else {
       // fallback: simple threshold
@@ -521,6 +553,10 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
   }
 
   function suggestLoopDuration(P) {
+    // If shuffle is on, loop = full cycle through all styles
+    if (P.shuffleEnabled && P.shuffleInterval > 0.01) {
+      return P.shuffleInterval * STYLE_LIST.length;
+    }
     // 4 seconds default for animation loops
     return 4.0 / Math.max(0.1, P.animSpeed);
   }
