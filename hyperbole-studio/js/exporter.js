@@ -90,5 +90,36 @@ window.HYPERBOLE_EXPORTER = (function () {
     if (onStatus) onStatus('Done — ' + totalFrames + ' frames exported.', 1.0);
   }
 
-  return { exportSequence };
+  // ----- single still PNG export -----
+  async function exportStill({ generator, params, width, height, onStatus }) {
+    if (!generator || !generator.render) {
+      throw new Error('Invalid generator');
+    }
+    if (typeof saveAs === 'undefined') {
+      throw new Error('FileSaver not loaded');
+    }
+    const cv = document.createElement('canvas');
+    cv.width = width;
+    cv.height = height;
+    const ctx = cv.getContext('2d');
+
+    const state = { travel: 0, lastT: 0 };
+    if (generator.setup) generator.setup(state);
+
+    if (onStatus) onStatus('Rendering still…', 0.5);
+
+    // disable animation modulation by passing animEnabled=false
+    generator.render(ctx, width, height, 0, params, { state, animEnabled: false });
+
+    const blob = await new Promise((resolve, reject) => {
+      cv.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png');
+    });
+
+    const fname = 'hyperbole_' + generator.id + '_' + width + 'x' + height + '.png';
+    saveAs(blob, fname);
+
+    if (onStatus) onStatus('Done — still PNG exported.', 1.0);
+  }
+
+  return { exportSequence, exportStill };
 })();

@@ -1,5 +1,6 @@
 /* ============================================================
-   HYPERBOLE Studio - Main App Shell
+   HYPERBOLE Studio - Main App Shell (v2)
+   adds image-input control type and static PNG export
    ============================================================ */
 
 (function () {
@@ -25,6 +26,8 @@
   const fpsDisplay = $('#fpsDisplay');
   const aspectDisplay = $('#aspectDisplay');
   const exportBtn = $('#exportBtn');
+  const exportStaticBtn = $('#exportStaticBtn');
+  const staticBtnRow = $('#staticBtnRow');
   const exportStatus = $('#exportStatus');
   const exportFramesEl = $('#exportFrames');
   const inExportW = $('#exportW');
@@ -59,13 +62,10 @@
     const ratio = ASPECTS[ratioStr];
     aspectDisplay.textContent = ratioStr;
 
-    // available area (stage-wrapper minus padding)
     const wrapW = stageWrapper.clientWidth - 40;
     const wrapH = stageWrapper.clientHeight - 60;
     let stageW, stageH;
-    const scaleByW = wrapW / ratio.w;
-    const scaleByH = wrapH / ratio.h;
-    if (scaleByW * ratio.h <= wrapH) {
+    if ((wrapW / ratio.w) * ratio.h <= wrapH) {
       stageW = wrapW;
       stageH = wrapW * ratio.h / ratio.w;
     } else {
@@ -84,9 +84,7 @@
   window.addEventListener('resize', fitStage);
   aspectSelect.addEventListener('change', () => {
     fitStage();
-    // also auto-fill default export size based on aspect
     const ratio = ASPECTS[aspectSelect.value];
-    // default to 1080-something
     const targetH = 1080;
     inExportW.value = Math.round(targetH * ratio.w / ratio.h);
     inExportH.value = targetH;
@@ -119,7 +117,6 @@
             Object.keys(p.values).forEach(k => {
               currentParams[k] = p.values[k];
             });
-            // re-render UI to reflect new values
             buildParamUI(generator);
           });
           row.appendChild(b);
@@ -129,12 +126,85 @@
         return;
       }
 
+      // ----- image-input: special handler -----
+      if (item.type === 'image-input') {
+        const label = document.createElement('label');
+        label.textContent = 'Source Image';
+        wrapper.appendChild(label);
+
+        const dropZone = document.createElement('div');
+        dropZone.className = 'drop-zone';
+        dropZone.textContent = generator.hasImage && generator.hasImage()
+          ? 'Image loaded — click or drop to replace'
+          : 'Click or drop image here';
+        wrapper.appendChild(dropZone);
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.style.display = 'none';
+        wrapper.appendChild(fileInput);
+
+        function loadFile(file) {
+          if (!file || !file.type.startsWith('image/')) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+              if (generator.setImage) generator.setImage(img);
+              dropZone.textContent = 'Loaded: ' + file.name + ' (' + img.naturalWidth + '×' + img.naturalHeight + ')';
+              dropZone.classList.add('has-image');
+              // also auto-set export size to image's natural size (clamped)
+              const cap = 4096;
+              let w = img.naturalWidth;
+              let h = img.naturalHeight;
+              if (w > cap || h > cap) {
+                const s = Math.min(cap / w, cap / h);
+                w = Math.round(w * s);
+                h = Math.round(h * s);
+              }
+              inExportW.value = w;
+              inExportH.value = h;
+              updateFrameCount();
+            };
+            img.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files.length) loadFile(e.target.files[0]);
+        });
+        // drag and drop
+        ['dragenter', 'dragover'].forEach(ev => {
+          dropZone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('drag-over');
+          });
+        });
+        ['dragleave', 'drop'].forEach(ev => {
+          dropZone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('drag-over');
+          });
+        });
+        dropZone.addEventListener('drop', (e) => {
+          if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+        });
+
+        paramPanel.appendChild(wrapper);
+        return;
+      }
+
+      // ----- regular controls -----
       const label = document.createElement('label');
       const labelText = document.createElement('span');
       labelText.textContent = item.label;
       label.appendChild(labelText);
 
-      // value display for ranges
       let valueSpan;
       if (item.type === 'range') {
         valueSpan = document.createElement('span');
@@ -177,11 +247,18 @@
           const o = document.createElement('option');
           o.value = opt.value;
           o.textContent = opt.label;
-          if (currentParams[item.key] === opt.value) o.selected = true;
+          // coerce comparison since some option values are numbers
+          if (String(currentParams[item.key]) === String(opt.value)) o.selected = true;
           input.appendChild(o);
         });
         input.addEventListener('change', () => {
-          currentParams[item.key] = input.value;
+          // try to parse number if original was a number
+          const cur = currentParams[item.key];
+          if (typeof cur === 'number') {
+            currentParams[item.key] = parseFloat(input.value);
+          } else {
+            currentParams[item.key] = input.value;
+          }
         });
       }
       if (input) wrapper.appendChild(input);
@@ -197,19 +274,23 @@
       return;
     }
     currentGen = gen;
-    // copy default params
     currentParams = JSON.parse(JSON.stringify(gen.defaultParams));
     buildParamUI(gen);
-    // reset preview state
     previewState.travel = 0;
     previewState.lastT = 0;
     if (gen.setup) gen.setup(previewState);
 
-    // suggest loop duration in export panel
     if (gen.suggestLoopDuration) {
       const dur = gen.suggestLoopDuration(currentParams);
       inExportDur.value = dur.toFixed(1);
       updateFrameCount();
+    }
+
+    // show/hide static button based on capability
+    if (gen.requiresImage) {
+      staticBtnRow.style.display = '';
+    } else {
+      staticBtnRow.style.display = 'none';
     }
   }
 
@@ -227,6 +308,7 @@
   inExportFps.addEventListener('input', updateFrameCount);
   inExportDur.addEventListener('input', updateFrameCount);
 
+  // PNG sequence (animated loop)
   exportBtn.addEventListener('click', async () => {
     if (!currentGen) return;
     const w = parseInt(inExportW.value, 10);
@@ -238,7 +320,6 @@
       exportStatus.textContent = 'Invalid export settings';
       return;
     }
-    // sanity caps
     if (w * h > 7680 * 4320) {
       exportStatus.textContent = 'Output resolution too large';
       return;
@@ -248,6 +329,7 @@
     }
 
     exportBtn.disabled = true;
+    if (exportStaticBtn) exportStaticBtn.disabled = true;
     try {
       await window.HYPERBOLE_EXPORTER.exportSequence({
         generator: currentGen,
@@ -256,15 +338,13 @@
         height: h,
         fps,
         duration: dur,
-        onStatus: (msg, progress) => {
-          exportStatus.textContent = msg;
-        }
+        onStatus: (msg) => { exportStatus.textContent = msg; }
       });
     } catch (e) {
       exportStatus.textContent = 'ERROR: ' + e.message;
     } finally {
       exportBtn.disabled = false;
-      // clear status after a bit if success
+      if (exportStaticBtn) exportStaticBtn.disabled = false;
       setTimeout(() => {
         if (exportStatus.textContent.indexOf('Done') === 0) {
           exportStatus.textContent = '';
@@ -272,6 +352,40 @@
       }, 5000);
     }
   });
+
+  // PNG single frame (still)
+  if (exportStaticBtn) {
+    exportStaticBtn.addEventListener('click', async () => {
+      if (!currentGen) return;
+      const w = parseInt(inExportW.value, 10);
+      const h = parseInt(inExportH.value, 10);
+      if (!w || !h) {
+        exportStatus.textContent = 'Invalid export size';
+        return;
+      }
+      exportBtn.disabled = true;
+      exportStaticBtn.disabled = true;
+      try {
+        await window.HYPERBOLE_EXPORTER.exportStill({
+          generator: currentGen,
+          params: currentParams,
+          width: w,
+          height: h,
+          onStatus: (msg) => { exportStatus.textContent = msg; }
+        });
+      } catch (e) {
+        exportStatus.textContent = 'ERROR: ' + e.message;
+      } finally {
+        exportBtn.disabled = false;
+        exportStaticBtn.disabled = false;
+        setTimeout(() => {
+          if (exportStatus.textContent.indexOf('Done') === 0) {
+            exportStatus.textContent = '';
+          }
+        }, 5000);
+      }
+    });
+  }
 
   // ----- preview render loop -----
   let last = performance.now();

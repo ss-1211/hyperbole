@@ -317,3 +317,55 @@ button, input, select {
   text-transform: uppercase;
 }
 .group-title:first-child { margin-top: 0; }
+
+/* drop zone for image upload */
+.drop-zone {
+  border: 1px dashed var(--border-strong);
+  background: var(--bg-panel-2);
+  color: var(--text-dim);
+  padding: 24px 12px;
+  text-align: center;
+  cursor: pointer;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.drop-zone:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.drop-zone.drag-over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.drop-zone.has-image {
+  border-style: solid;
+  color: var(--text);
+}
+
+/* secondary button (still PNG) */
+.btn-secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  font-size: 10px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.btn-secondary:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
