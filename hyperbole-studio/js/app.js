@@ -128,15 +128,30 @@
 
       // ----- image-input: special handler -----
       if (item.type === 'image-input') {
-        const label = document.createElement('label');
-        label.textContent = 'Source Image';
-        wrapper.appendChild(label);
-
-        const dropZone = document.createElement('div');
+        // Don't add a redundant label here; the group-title above already
+        // says "Source Image". Just put the drop zone with inline styles
+        // so it cannot be invisible due to CSS issues.
+        const dropZone = document.createElement('button');
+        dropZone.type = 'button';
         dropZone.className = 'drop-zone';
-        dropZone.textContent = generator.hasImage && generator.hasImage()
-          ? 'Image loaded — click or drop to replace'
-          : 'Click or drop image here';
+        // explicit inline styles to bypass any CSS conflicts
+        dropZone.style.cssText = [
+          'display: block',
+          'width: 100%',
+          'min-height: 80px',
+          'border: 2px dashed #555',
+          'background: #1a1a1a',
+          'color: #aaa',
+          'padding: 24px 12px',
+          'text-align: center',
+          'cursor: pointer',
+          'font-family: inherit',
+          'font-size: 11px',
+          'letter-spacing: 0.1em'
+        ].join('; ');
+        dropZone.textContent = (generator.hasImage && generator.hasImage())
+          ? 'IMAGE LOADED — CLICK TO REPLACE'
+          : '📁 CLICK TO UPLOAD IMAGE';
         wrapper.appendChild(dropZone);
 
         const fileInput = document.createElement('input');
@@ -146,15 +161,18 @@
         wrapper.appendChild(fileInput);
 
         function loadFile(file) {
-          if (!file || !file.type.startsWith('image/')) return;
+          if (!file || !file.type.startsWith('image/')) {
+            console.warn('[HYPERBOLE] Not an image file:', file && file.type);
+            return;
+          }
           const reader = new FileReader();
           reader.onload = (ev) => {
             const img = new Image();
             img.onload = () => {
               if (generator.setImage) generator.setImage(img);
-              dropZone.textContent = 'Loaded: ' + file.name + ' (' + img.naturalWidth + '×' + img.naturalHeight + ')';
-              dropZone.classList.add('has-image');
-              // also auto-set export size to image's natural size (clamped)
+              dropZone.textContent = '✓ ' + file.name + ' — ' + img.naturalWidth + '×' + img.naturalHeight;
+              dropZone.style.borderStyle = 'solid';
+              dropZone.style.color = '#fff';
               const cap = 4096;
               let w = img.naturalWidth;
               let h = img.naturalHeight;
@@ -166,8 +184,16 @@
               inExportW.value = w;
               inExportH.value = h;
               updateFrameCount();
+              console.log('[HYPERBOLE] Image loaded:', file.name, w + 'x' + h);
+            };
+            img.onerror = () => {
+              console.error('[HYPERBOLE] Failed to decode image');
+              dropZone.textContent = '✗ Failed to decode image';
             };
             img.src = ev.target.result;
+          };
+          reader.onerror = () => {
+            console.error('[HYPERBOLE] FileReader error');
           };
           reader.readAsDataURL(file);
         }
@@ -176,19 +202,18 @@
         fileInput.addEventListener('change', (e) => {
           if (e.target.files.length) loadFile(e.target.files[0]);
         });
-        // drag and drop
         ['dragenter', 'dragover'].forEach(ev => {
           dropZone.addEventListener(ev, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.classList.add('drag-over');
+            dropZone.style.borderColor = 'var(--accent, #fff)';
           });
         });
         ['dragleave', 'drop'].forEach(ev => {
           dropZone.addEventListener(ev, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.classList.remove('drag-over');
+            dropZone.style.borderColor = '#555';
           });
         });
         dropZone.addEventListener('drop', (e) => {
