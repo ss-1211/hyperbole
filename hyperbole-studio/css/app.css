@@ -318,6 +318,13 @@ button, input, select {
 }
 .group-title:first-child { margin-top: 0; }
 
+/* child / dependent param: shows under its driving param with a soft left rule */
+.ctrl.is-child {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border-strong);
+}
+
 /* drop zone for image upload */
 .drop-zone {
   border: 1px dashed var(--border-strong);

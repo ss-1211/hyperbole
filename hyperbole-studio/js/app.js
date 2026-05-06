@@ -91,6 +91,24 @@
     updateFrameCount();
   });
 
+  // ----- compute the set of param keys that drive showFor visibility -----
+  // Memoized per-generator so we don't recompute on every select change.
+  const _drivingKeysCache = new WeakMap();
+  function drivingKeys(generator) {
+    if (_drivingKeysCache.has(generator)) return _drivingKeysCache.get(generator);
+    const keys = new Set();
+    generator.paramSchema.forEach(item => {
+      if (!item.showFor) return;
+      if (Array.isArray(item.showFor)) {
+        keys.add('style'); // legacy shorthand
+      } else {
+        Object.keys(item.showFor).forEach(k => keys.add(k));
+      }
+    });
+    _drivingKeysCache.set(generator, keys);
+    return keys;
+  }
+
   // ----- param panel rendering -----
   function buildParamUI(generator) {
     // clean up any timers from previous panel
@@ -100,6 +118,31 @@
     paramPanel.innerHTML = '';
 
     generator.paramSchema.forEach((item) => {
+      // ----- visibility filter -----
+      // showFor can be:
+      //   ['bar', 'wave']            → shorthand for { style: ['bar', 'wave'] }
+      //   { style: ['bar'] }         → currentParams.style must be 'bar'
+      //   { animate: [1], style: ['ascii'] } → ALL keys must match (AND)
+      // Values within a key array are OR-matched; each value is either:
+      //   - a primitive compared loosely (1 == "1")
+      //   - a function (cur) => boolean for ranges (e.g. v => v > 0)
+      // Items without showFor are always rendered.
+      if (item.showFor) {
+        const cond = Array.isArray(item.showFor)
+          ? { style: item.showFor }
+          : item.showFor;
+        let pass = true;
+        for (const k in cond) {
+          const allowed = cond[k];
+          const cur = currentParams[k];
+          const matches = allowed.some(v =>
+            typeof v === 'function' ? v(cur) : String(v) === String(cur)
+          );
+          if (!matches) { pass = false; break; }
+        }
+        if (!pass) return;
+      }
+
       if (item.type === 'group') {
         const t = document.createElement('div');
         t.className = 'group-title';
@@ -109,6 +152,7 @@
       }
       const wrapper = document.createElement('div');
       wrapper.className = 'ctrl';
+      if (item.indent) wrapper.classList.add('is-child');
 
       if (item.type === 'preset-row') {
         const row = document.createElement('div');
@@ -398,6 +442,13 @@
           currentParams[item.key] = v;
           if (valueSpan) valueSpan.textContent = (item.fmt || (v => v))(v);
         });
+        // rebuild only on release if this slider drives visibility,
+        // to avoid thrashing the DOM during drag
+        input.addEventListener('change', () => {
+          if (drivingKeys(generator).has(item.key)) {
+            buildParamUI(generator);
+          }
+        });
       } else if (item.type === 'color') {
         input = document.createElement('input');
         input.type = 'color';
@@ -429,6 +480,10 @@
             currentParams[item.key] = parseFloat(input.value);
           } else {
             currentParams[item.key] = input.value;
+          }
+          // if this select drives any showFor visibility, rebuild the panel
+          if (drivingKeys(generator).has(item.key)) {
+            buildParamUI(generator);
           }
         });
       }

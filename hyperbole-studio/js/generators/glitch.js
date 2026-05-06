@@ -60,13 +60,13 @@ window.HYPERBOLE_GENERATORS.glitch = (function () {
       { value: 'ease-out',    label: 'Ease Out' }
     ]},
 
-    { type: 'group', label: 'Glitch (mid-transition)' },
-    { type: 'range', key: 'pixPeak',    label: 'Pixelate Peak',    min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'hShiftPeak', label: 'H-Shift Peak',     min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'skewPeak',   label: 'Skew Peak',        min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
+    { type: 'group', label: 'Glitch (Peak)' },
+    { type: 'range', key: 'pixPeak',    label: 'Pixelate',         min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
+    { type: 'range', key: 'hShiftPeak', label: 'H-Shift',          min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
+    { type: 'range', key: 'skewPeak',   label: 'Skew',             min: 0, max: 1, step: 0.01, fmt: v => v.toFixed(2) },
     { type: 'range', key: 'bandRes',    label: 'Band Resolution',  min: 10, max: 200, step: 1, fmt: v => v },
 
-    { type: 'group', label: 'Always-on FX' },
+    { type: 'group', label: 'Always-on Effects' },
     { type: 'range', key: 'subtleGlitch', label: 'Subtle Glitch', min: 0, max: 0.5, step: 0.01, fmt: v => v.toFixed(2) },
     { type: 'range', key: 'scanlines',    label: 'Scanlines',     min: 0, max: 1,   step: 0.01, fmt: v => v.toFixed(2) },
     { type: 'range', key: 'noise',        label: 'Noise',         min: 0, max: 1,   step: 0.01, fmt: v => v.toFixed(2) },

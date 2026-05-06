@@ -94,73 +94,81 @@ window.HYPERBOLE_GENERATORS.audioViz = (function () {
     ]},
 
     // ─── BAR ───
-    { type: 'group', label: 'BAR — Layout' },
-    { type: 'range', key: 'bands',     label: 'Bands',     min: 8,  max: 256, step: 1, fmt: v => v },
-    { type: 'range', key: 'barWidth',  label: 'Bar Width', min: 1,  max: 20,  step: 0.5, fmt: v => v.toFixed(1) },
-    { type: 'range', key: 'gap',       label: 'Gap',       min: 0,  max: 10,  step: 0.5, fmt: v => v.toFixed(1) },
-    { type: 'range', key: 'amp',       label: 'Amplitude', min: 10, max: 100, step: 1, fmt: v => v },
-    { type: 'range', key: 'freqStart', label: 'Freq Start',min: 0,    max: 0.3, step: 0.01, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'freqEnd',   label: 'Freq End',  min: 0.3,  max: 1,   step: 0.01, fmt: v => v.toFixed(2) },
+    { type: 'group', label: 'BAR — Layout', showFor: { style: ['bar'] } },
+    { type: 'range', key: 'bands',     label: 'Bands',     min: 8,  max: 256, step: 1, fmt: v => v, showFor: { style: ['bar'] } },
+    { type: 'range', key: 'barWidth',  label: 'Bar Width', min: 1,  max: 20,  step: 0.5, fmt: v => v.toFixed(1), showFor: { style: ['bar'] } },
+    { type: 'range', key: 'gap',       label: 'Gap',       min: 0,  max: 10,  step: 0.5, fmt: v => v.toFixed(1), showFor: { style: ['bar'] } },
+    { type: 'range', key: 'amp',       label: 'Amplitude', min: 10, max: 100, step: 1, fmt: v => v, showFor: { style: ['bar'] } },
+    { type: 'range', key: 'freqStart', label: 'Freq Start',min: 0,    max: 0.3, step: 0.01, fmt: v => v.toFixed(2), showFor: { style: ['bar'] } },
+    { type: 'range', key: 'freqEnd',   label: 'Freq End',  min: 0.3,  max: 1,   step: 0.01, fmt: v => v.toFixed(2), showFor: { style: ['bar'] } },
 
-    { type: 'group', label: 'BAR — Peak Hold' },
-    { type: 'select', key: 'peakShow', label: 'Show Peak Lines', options: [
+    { type: 'group', label: 'BAR — Peak Hold', showFor: { style: ['bar'] } },
+    { type: 'select', key: 'peakShow', label: 'Show Peak Lines', showFor: { style: ['bar'] }, options: [
       { value: 0, label: 'No' }, { value: 1, label: 'Yes' }
     ]},
-    { type: 'range', key: 'peakHold',  label: 'Peak Hold (frames)', min: 1, max: 120, step: 1, fmt: v => v },
-    { type: 'range', key: 'peakDecay', label: 'Peak Decay',         min: 0.1, max: 10, step: 0.1, fmt: v => v.toFixed(1) },
-    { type: 'range', key: 'peakH',     label: 'Peak Height',        min: 1, max: 8, step: 0.5, fmt: v => v.toFixed(1) },
+    { type: 'range', key: 'peakHold',  label: 'Peak Hold (frames)', min: 1, max: 120, step: 1, fmt: v => v,
+      showFor: { style: ['bar'], peakShow: [1] }, indent: true },
+    { type: 'range', key: 'peakDecay', label: 'Peak Decay',         min: 0.1, max: 10, step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { style: ['bar'], peakShow: [1] }, indent: true },
+    { type: 'range', key: 'peakH',     label: 'Peak Height',        min: 1, max: 8, step: 0.5, fmt: v => v.toFixed(1),
+      showFor: { style: ['bar'], peakShow: [1] }, indent: true },
 
     // ─── WAVE ───
-    { type: 'group', label: 'WAVE — White Line' },
-    { type: 'range', key: 'whiteAmp',   label: 'White Amp',     min: 5,   max: 100, step: 1, fmt: v => v },
-    { type: 'range', key: 'whiteWidth', label: 'White Width',   min: 0.5, max: 5,   step: 0.5, fmt: v => v.toFixed(1) },
-    { type: 'range', key: 'whiteOp',    label: 'White Opacity', min: 0.1, max: 1,   step: 0.05, fmt: v => v.toFixed(2) },
+    { type: 'group', label: 'WAVE — White Line', showFor: { style: ['wave'] } },
+    { type: 'range', key: 'whiteAmp',   label: 'White Amp',     min: 5,   max: 100, step: 1, fmt: v => v, showFor: { style: ['wave'] } },
+    { type: 'range', key: 'whiteWidth', label: 'White Width',   min: 0.5, max: 5,   step: 0.5, fmt: v => v.toFixed(1), showFor: { style: ['wave'] } },
+    { type: 'range', key: 'whiteOp',    label: 'White Opacity', min: 0.1, max: 1,   step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['wave'] } },
 
-    { type: 'group', label: 'WAVE — Primary Line' },
-    { type: 'range', key: 'greenAmp',   label: 'Primary Amp',     min: 5,   max: 100, step: 1, fmt: v => v },
-    { type: 'range', key: 'greenWidth', label: 'Primary Width',   min: 0.5, max: 5,   step: 0.5, fmt: v => v.toFixed(1) },
-    { type: 'range', key: 'greenOp',    label: 'Primary Opacity', min: 0.1, max: 1,   step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'delay',      label: 'Delay Frames',    min: 1,   max: 20,  step: 1, fmt: v => v },
-    { type: 'range', key: 'delayOp',    label: 'Delay Opacity',   min: 0.05, max: 0.8, step: 0.05, fmt: v => v.toFixed(2) },
+    { type: 'group', label: 'WAVE — Primary Line', showFor: { style: ['wave'] } },
+    { type: 'range', key: 'greenAmp',   label: 'Primary Amp',     min: 5,   max: 100, step: 1, fmt: v => v, showFor: { style: ['wave'] } },
+    { type: 'range', key: 'greenWidth', label: 'Primary Width',   min: 0.5, max: 5,   step: 0.5, fmt: v => v.toFixed(1), showFor: { style: ['wave'] } },
+    { type: 'range', key: 'greenOp',    label: 'Primary Opacity', min: 0.1, max: 1,   step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['wave'] } },
+    { type: 'range', key: 'delay',      label: 'Delay Frames',    min: 1,   max: 20,  step: 1, fmt: v => v, showFor: { style: ['wave'] } },
+    { type: 'range', key: 'delayOp',    label: 'Delay Opacity',   min: 0.05, max: 0.8, step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['wave'] } },
 
-    { type: 'group', label: 'WAVE — Verticals' },
-    { type: 'select', key: 'vertShow', label: 'Vert Lines', options: [
+    { type: 'group', label: 'WAVE — Verticals', showFor: { style: ['wave'] } },
+    { type: 'select', key: 'vertShow', label: 'Vert Lines', showFor: { style: ['wave'] }, options: [
       { value: 0, label: 'No' }, { value: 1, label: 'Yes' }
     ]},
-    { type: 'range', key: 'vertWidth', label: 'Vert Width', min: 1, max: 8, step: 0.5, fmt: v => v.toFixed(1) },
+    { type: 'range', key: 'vertWidth', label: 'Vert Width', min: 1, max: 8, step: 0.5, fmt: v => v.toFixed(1),
+      showFor: { style: ['wave'], vertShow: [1] }, indent: true },
 
     // ─── RADIAL ───
-    { type: 'group', label: 'RADIAL — Circle' },
-    { type: 'range', key: 'baseR',  label: 'Base Radius', min: 40,  max: 240, step: 1, fmt: v => v },
-    { type: 'range', key: 'fluid',  label: 'Shape Fluid', min: 0,   max: 120, step: 1, fmt: v => v },
-    { type: 'range', key: 'fspeed', label: 'Fluid Speed', min: 0.1, max: 5,   step: 0.1, fmt: v => v.toFixed(1) },
+    { type: 'group', label: 'RADIAL — Circle', showFor: { style: ['radial'] } },
+    { type: 'range', key: 'baseR',  label: 'Base Radius', min: 40,  max: 240, step: 1, fmt: v => v, showFor: { style: ['radial'] } },
+    { type: 'range', key: 'fluid',  label: 'Shape Fluid', min: 0,   max: 120, step: 1, fmt: v => v, showFor: { style: ['radial'] } },
+    { type: 'range', key: 'fspeed', label: 'Fluid Speed', min: 0.1, max: 5,   step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { style: ['radial'], fluid: [v => v > 0] }, indent: true },
 
-    { type: 'group', label: 'RADIAL — Bars' },
-    { type: 'range', key: 'radialBands', label: 'Bands',     min: 16, max: 256, step: 1, fmt: v => v },
-    { type: 'range', key: 'outerAmp',    label: 'Amp Outer', min: 5,  max: 150, step: 1, fmt: v => v },
-    { type: 'range', key: 'innerAmp',    label: 'Amp Inner', min: 0,  max: 150, step: 1, fmt: v => v },
-    { type: 'range', key: 'radialBarW',  label: 'Bar Width', min: 0.5, max: 6, step: 0.5, fmt: v => v.toFixed(1) },
-    { type: 'range', key: 'contrast',    label: 'Contrast',  min: 0.5, max: 5, step: 0.1, fmt: v => v.toFixed(1) },
+    { type: 'group', label: 'RADIAL — Bars', showFor: { style: ['radial'] } },
+    { type: 'range', key: 'radialBands', label: 'Bands',     min: 16, max: 256, step: 1, fmt: v => v, showFor: { style: ['radial'] } },
+    { type: 'range', key: 'outerAmp',    label: 'Amp Outer', min: 5,  max: 150, step: 1, fmt: v => v, showFor: { style: ['radial'] } },
+    { type: 'range', key: 'innerAmp',    label: 'Amp Inner', min: 0,  max: 150, step: 1, fmt: v => v, showFor: { style: ['radial'] } },
+    { type: 'range', key: 'radialBarW',  label: 'Bar Width', min: 0.5, max: 6, step: 0.5, fmt: v => v.toFixed(1), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'contrast',    label: 'Contrast',  min: 0.5, max: 5, step: 0.1, fmt: v => v.toFixed(1), showFor: { style: ['radial'] } },
 
-    { type: 'group', label: 'RADIAL — 3-Band EQ' },
-    { type: 'range', key: 'lowRange',  label: 'Low End',  min: 0.01, max: 0.3, step: 0.01, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'midRange',  label: 'Mid End',  min: 0.05, max: 0.6, step: 0.01, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'highRange', label: 'High End', min: 0.1,  max: 1,   step: 0.01, fmt: v => v.toFixed(2) },
+    { type: 'group', label: 'RADIAL — 3-Band EQ', showFor: { style: ['radial'] } },
+    { type: 'range', key: 'lowRange',  label: 'Low End',  min: 0.01, max: 0.3, step: 0.01, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'midRange',  label: 'Mid End',  min: 0.05, max: 0.6, step: 0.01, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'highRange', label: 'High End', min: 0.1,  max: 1,   step: 0.01, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
 
-    { type: 'group', label: 'RADIAL — Low Band' },
-    { type: 'range', key: 'lowBase',  label: 'Base Gain',  min: 0,   max: 3, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'lowWAmt',  label: 'Wiggle Amt', min: 0,   max: 2, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'lowWSpd',  label: 'Wiggle Spd', min: 0.1, max: 5, step: 0.1, fmt: v => v.toFixed(1) },
+    { type: 'group', label: 'RADIAL — Low Band', showFor: { style: ['radial'] } },
+    { type: 'range', key: 'lowBase',  label: 'Base Gain',  min: 0,   max: 3, step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'lowWAmt',  label: 'Wiggle Amt', min: 0,   max: 2, step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'lowWSpd',  label: 'Wiggle Spd', min: 0.1, max: 5, step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { style: ['radial'], lowWAmt: [v => v > 0] }, indent: true },
 
-    { type: 'group', label: 'RADIAL — Mid Band' },
-    { type: 'range', key: 'midBase',  label: 'Base Gain',  min: 0,   max: 3, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'midWAmt',  label: 'Wiggle Amt', min: 0,   max: 2, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'midWSpd',  label: 'Wiggle Spd', min: 0.1, max: 5, step: 0.1, fmt: v => v.toFixed(1) },
+    { type: 'group', label: 'RADIAL — Mid Band', showFor: { style: ['radial'] } },
+    { type: 'range', key: 'midBase',  label: 'Base Gain',  min: 0,   max: 3, step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'midWAmt',  label: 'Wiggle Amt', min: 0,   max: 2, step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'midWSpd',  label: 'Wiggle Spd', min: 0.1, max: 5, step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { style: ['radial'], midWAmt: [v => v > 0] }, indent: true },
 
-    { type: 'group', label: 'RADIAL — High Band' },
-    { type: 'range', key: 'highBase',  label: 'Base Gain',  min: 0,   max: 3, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'highWAmt',  label: 'Wiggle Amt', min: 0,   max: 2, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'highWSpd',  label: 'Wiggle Spd', min: 0.1, max: 5, step: 0.1, fmt: v => v.toFixed(1) }
+    { type: 'group', label: 'RADIAL — High Band', showFor: { style: ['radial'] } },
+    { type: 'range', key: 'highBase',  label: 'Base Gain',  min: 0,   max: 3, step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'highWAmt',  label: 'Wiggle Amt', min: 0,   max: 2, step: 0.05, fmt: v => v.toFixed(2), showFor: { style: ['radial'] } },
+    { type: 'range', key: 'highWSpd',  label: 'Wiggle Spd', min: 0.1, max: 5, step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { style: ['radial'], highWAmt: [v => v > 0] }, indent: true }
   ];
 
   // ============================================================

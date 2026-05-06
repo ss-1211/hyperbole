@@ -51,15 +51,21 @@ window.HYPERBOLE_GENERATORS.wireframe = (function () {
     { type: 'range',  key: 'glow',      label: 'Glow',        min: 0,   max: 40, step: 1,   fmt: v => v },
 
     { type: 'group',  label: 'Forward Motion' },
-    { type: 'range',  key: 'speed',      label: 'Base Speed',   min: 0,   max: 5.0, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range',  key: 'pulseAmp',   label: 'Pulse Amp',    min: 0,   max: 1.0, step: 0.01, fmt: v => v.toFixed(2) },
-    { type: 'range',  key: 'pulseRate',  label: 'Pulse Rate',   min: 0.01, max: 2.0, step: 0.01, fmt: v => v.toFixed(2) },
-    { type: 'range',  key: 'pulseShape', label: 'Pulse Shape',  min: 1.0, max: 6.0, step: 0.1,  fmt: v => v.toFixed(1) },
+    { type: 'range',  key: 'speed',      label: 'Base Speed',  min: 0,   max: 5.0, step: 0.05, fmt: v => v.toFixed(2) },
+    { type: 'range',  key: 'pulseAmp',   label: 'Pulse Amount', min: 0,  max: 1.0, step: 0.01, fmt: v => v.toFixed(2) },
+    // pulse-shape knobs only matter when pulseAmp > 0
+    { type: 'range',  key: 'pulseRate',  label: 'Pulse Rate',  min: 0.01, max: 2.0, step: 0.01, fmt: v => v.toFixed(2),
+      showFor: { pulseAmp: [v => v > 0.001] }, indent: true },
+    { type: 'range',  key: 'pulseShape', label: 'Pulse Shape', min: 1.0, max: 6.0, step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { pulseAmp: [v => v > 0.001] }, indent: true },
 
     { type: 'group',  label: 'Wave Distortion' },
-    { type: 'range',  key: 'waveAmp',   label: 'Wave Amp',    min: 0,   max: 60, step: 1,    fmt: v => v },
-    { type: 'range',  key: 'waveFreq',  label: 'Wave Freq',   min: 0.5, max: 6.0, step: 0.1, fmt: v => v.toFixed(1) },
-    { type: 'range',  key: 'waveSpeed', label: 'Wave Speed',  min: 0,   max: 3.0, step: 0.05, fmt: v => v.toFixed(2) },
+    { type: 'range',  key: 'waveAmp',   label: 'Wave Amount', min: 0,   max: 60, step: 1,    fmt: v => v },
+    // wave-frequency knobs only matter when waveAmp > 0
+    { type: 'range',  key: 'waveFreq',  label: 'Wave Freq',   min: 0.5, max: 6.0, step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { waveAmp: [v => v > 0] }, indent: true },
+    { type: 'range',  key: 'waveSpeed', label: 'Wave Speed',  min: 0,   max: 3.0, step: 0.05, fmt: v => v.toFixed(2),
+      showFor: { waveAmp: [v => v > 0] }, indent: true },
 
     { type: 'group',  label: 'Geometry' },
     { type: 'range',  key: 'grid',     label: 'Grid Density',     min: 6,  max: 30, step: 1, fmt: v => v },

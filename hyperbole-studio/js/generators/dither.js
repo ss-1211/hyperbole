@@ -52,7 +52,7 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
     { type: 'group', label: 'Source Image' },
     { type: 'image-input', key: '__image' },
 
-    { type: 'group', label: 'Style' },
+    { type: 'group', label: 'Algorithm' },
     { type: 'select', key: 'style', label: 'Algorithm', options: [
       { value: 'mod-diffuse-y',    label: 'Modulated Diffuse Y' },
       { value: 'floyd-steinberg',  label: 'Floyd-Steinberg' },
@@ -61,6 +61,15 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
       { value: 'halftone',         label: 'Halftone Dots' },
       { value: 'ascii',            label: 'ASCII Art' }
     ]},
+    // algorithm-specific knobs (indented under Algorithm select)
+    { type: 'range', key: 'lineScale', label: 'Line Scale', min: 1, max: 12, step: 1, fmt: v => v,
+      showFor: { style: ['mod-diffuse-y'] }, indent: true },
+    { type: 'range', key: 'dotSize', label: 'Dot Size', min: 2, max: 30, step: 1, fmt: v => v,
+      showFor: { style: ['halftone'] }, indent: true },
+    { type: 'range', key: 'asciiSize', label: 'Cell Size', min: 4, max: 24, step: 1, fmt: v => v,
+      showFor: { style: ['ascii'] }, indent: true },
+    { type: 'range', key: 'bayerLevel', label: 'Bayer Level (1=2x2..3=8x8)', min: 1, max: 3, step: 1, fmt: v => v,
+      showFor: { style: ['bayer'] }, indent: true },
 
     { type: 'group', label: 'Tonal' },
     { type: 'range', key: 'contrast',           label: 'Contrast',            min: -100, max: 100, step: 1, fmt: v => v },
@@ -69,13 +78,7 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
     { type: 'range', key: 'luminanceThreshold', label: 'Luminance Threshold', min: 0,    max: 100, step: 1, fmt: v => v },
 
     { type: 'group', label: 'Resolution' },
-    { type: 'range', key: 'scale',     label: 'Scale',      min: 0.1, max: 1.0, step: 0.05, fmt: v => v.toFixed(2) },
-    { type: 'range', key: 'lineScale', label: 'Line Scale', min: 1,   max: 12,  step: 1, fmt: v => v },
-
-    { type: 'group', label: 'Style-specific' },
-    { type: 'range', key: 'dotSize',     label: 'Dot Size (Halftone)',     min: 2, max: 30, step: 1, fmt: v => v },
-    { type: 'range', key: 'asciiSize',   label: 'Cell Size (ASCII)',       min: 4, max: 24, step: 1, fmt: v => v },
-    { type: 'range', key: 'bayerLevel',  label: 'Bayer Level (1=2x2..3=8x8)', min: 1, max: 3, step: 1, fmt: v => v },
+    { type: 'range', key: 'scale', label: 'Scale', min: 0.1, max: 1.0, step: 0.05, fmt: v => v.toFixed(2) },
 
     { type: 'group', label: 'Color' },
     { type: 'color', key: 'inkColor', label: 'Ink Color' },
@@ -99,19 +102,24 @@ window.HYPERBOLE_GENERATORS.dither = (function () {
       { value: 0, label: 'Off (still)' },
       { value: 1, label: 'On (loop)' }
     ]},
-    { type: 'select', key: 'animMode', label: 'Anim Mode', options: [
-      { value: 'threshold',     label: 'Threshold sweep' },
-      { value: 'scale',         label: 'Scale breath' },
-      { value: 'scanlinesShift',label: 'Scanlines shift' }
-    ]},
-    { type: 'range', key: 'animSpeed', label: 'Anim Speed', min: 0.1, max: 3.0, step: 0.05, fmt: v => v.toFixed(2) },
+    { type: 'select', key: 'animMode', label: 'Anim Mode',
+      showFor: { animate: [1] }, indent: true,
+      options: [
+        { value: 'threshold',     label: 'Threshold sweep' },
+        { value: 'scale',         label: 'Scale breath' },
+        { value: 'scanlinesShift',label: 'Scanlines shift' }
+      ]
+    },
+    { type: 'range', key: 'animSpeed', label: 'Anim Speed', min: 0.1, max: 3.0, step: 0.05, fmt: v => v.toFixed(2),
+      showFor: { animate: [1] }, indent: true },
 
     { type: 'group', label: 'Style Shuffle' },
     { type: 'select', key: 'shuffleEnabled', label: 'Auto-Shuffle Style', options: [
       { value: 0, label: 'Off' },
       { value: 1, label: 'On' }
     ]},
-    { type: 'range', key: 'shuffleInterval', label: 'Shuffle Interval (s)', min: 0.1, max: 10, step: 0.1, fmt: v => v.toFixed(1) }
+    { type: 'range', key: 'shuffleInterval', label: 'Shuffle Interval (s)', min: 0.1, max: 10, step: 0.1, fmt: v => v.toFixed(1),
+      showFor: { shuffleEnabled: [1] }, indent: true }
   ];
 
   // ============================================================
