@@ -1,0 +1,319 @@
+/* ============================================================
+   HYPERBOLE Studio — base styles
+   Theme: black/grey base + user-selectable accent color
+   ============================================================ */
+
+:root {
+  --accent: #ffffff;
+  --bg: #000000;
+  --bg-panel: #0a0a0a;
+  --bg-panel-2: #111111;
+  --border: #1f1f1f;
+  --border-strong: #333333;
+  --text: #ffffff;
+  --text-dim: #888888;
+  --text-mid: #aaaaaa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "SF Mono", Menlo, "Helvetica Neue", monospace;
+  overflow: hidden;
+}
+
+button, input, select {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--text);
+}
+
+/* ===== TOP BAR ===== */
+#topbar {
+  height: 48px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  gap: 18px;
+  flex-shrink: 0;
+}
+
+.brand {
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.topbar-controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.dd-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.dd-label select {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  padding: 5px 8px;
+  outline: none;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  text-transform: none;
+  min-width: 140px;
+}
+
+.dd-label input[type="color"] {
+  -webkit-appearance: none;
+  width: 32px;
+  height: 24px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.dd-label input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.dd-label input[type="color"]::-webkit-color-swatch { border: none; }
+
+/* ===== MAIN LAYOUT ===== */
+#main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  height: calc(100vh - 48px);
+}
+
+/* ===== STAGE ===== */
+#stage-wrapper {
+  position: relative;
+  background: #050505;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#stage {
+  position: relative;
+  background: #000;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+#stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#stage-info {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+#stage-info span { color: var(--accent); }
+
+/* ===== SIDEBAR ===== */
+#sidebar {
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding-bottom: 30px;
+}
+
+.panel-header {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--text-dim);
+  padding: 14px 18px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+#paramPanel, #exportPanel {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ctrl label {
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ctrl label .v {
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.ctrl input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  background: #222;
+  height: 2px;
+  outline: none;
+}
+
+.ctrl input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.ctrl input[type="number"],
+.ctrl input[type="text"] {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  padding: 6px 8px;
+  outline: none;
+  width: 100%;
+}
+
+.ctrl select {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  padding: 6px 8px;
+  outline: none;
+  cursor: pointer;
+  width: 100%;
+}
+
+.ctrl input[type="color"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 28px;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* preset buttons */
+.preset-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preset-btn {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-mid);
+  padding: 6px 10px;
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  flex: 1;
+  min-width: 50px;
+}
+
+.preset-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* main action button */
+#exportBtn {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  padding: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  font-size: 10px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 4px;
+}
+
+#exportBtn:hover {
+  filter: brightness(0.85);
+}
+
+#exportBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#exportStatus {
+  font-size: 10px;
+  color: var(--accent);
+  min-height: 14px;
+  margin-top: 6px;
+}
+
+.export-hint {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* error box */
+#errBox {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: #a00;
+  color: #fff;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 11px;
+  z-index: 9999;
+  white-space: pre-wrap;
+  max-height: 50vh;
+  overflow: auto;
+}
+
+/* group titles inside paramPanel */
+.group-title {
+  font-size: 8px;
+  letter-spacing: 0.3em;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+.group-title:first-child { margin-top: 0; }
