@@ -273,9 +273,12 @@
       console.error('Generator not found:', id);
       return;
     }
+    console.log('[HYPERBOLE] switchGenerator:', id, gen);
+    console.log('[HYPERBOLE] paramSchema items:', gen.paramSchema.length);
     currentGen = gen;
     currentParams = JSON.parse(JSON.stringify(gen.defaultParams));
     buildParamUI(gen);
+    console.log('[HYPERBOLE] paramPanel children after build:', paramPanel.children.length);
     previewState.travel = 0;
     previewState.lastT = 0;
     if (gen.setup) gen.setup(previewState);
