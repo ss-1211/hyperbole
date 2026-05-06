@@ -648,8 +648,14 @@
       const t = now / 1000;
       const w = cv.width / DPR;
       const h = cv.height / DPR;
+      // pass loopDur + fps so seeded loopable generators (colorbar) animate
+      // smoothly during preview too
+      const loopDur = parseFloat(inExportDur.value) || 4;
+      const fps = parseFloat(inExportFps.value) || 30;
       try {
-        currentGen.render(ctx, w, h, t, currentParams, { state: previewState });
+        currentGen.render(ctx, w, h, t, currentParams, {
+          state: previewState, loopDur, fps
+        });
       } catch (e) {
         console.error(e);
       }

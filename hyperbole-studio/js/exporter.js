@@ -51,13 +51,16 @@ window.HYPERBOLE_EXPORTER = (function () {
 
       // For wireframe, use travelAtTime for clean export (non-state based)
       // For audioViz with baked audio, pass frame index so render() uses baked FFT data
+      // For all generators: pass loopDur+fps so seeded/loopable generators (e.g. colorbar)
+      // can compute deterministic frame indices.
       let opts;
       if (generator.id === 'wireframe') {
-        opts = { useTravelAtTime: true, travelStep: 1 / Math.max(60, fps * 4) };
+        opts = { useTravelAtTime: true, travelStep: 1 / Math.max(60, fps * 4),
+                 loopDur: duration, fps };
       } else if (generator.id === 'audioViz') {
-        opts = { state, bakedFrameIndex: i };
+        opts = { state, bakedFrameIndex: i, loopDur: duration, fps };
       } else {
-        opts = { state };
+        opts = { state, loopDur: duration, fps };
       }
 
       generator.render(ctx, width, height, t, params, opts);
